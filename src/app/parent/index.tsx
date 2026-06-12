@@ -6,29 +6,32 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { useStore, COLORS, getOccurrenceDate, getUrgency, URGENCY_COLORS, todayStr } from '@/store';
-import type { Kid } from '@/types';
+import type { Kid, Chore } from '@/types';
 
 const AVATAR_COLORS = ['#EC4899', '#3B82F6', '#22C55E', '#F59E0B', '#8B5CF6', '#EF4444'];
 
+function ChoreIcon({ icon, size = 18 }: { icon?: string; size?: number }) {
+  if (!icon) return null;
+  return <Ionicons name={icon as React.ComponentProps<typeof Ionicons>['name']} size={size} color={COLORS.textSecondary} />;
+}
+
 export default function FamilyScreen() {
-  const { state, setRole, setCurrentKid, addKid, updateKid, removeKid, addBonus, getBalance } = useStore();
+  const { state, setRole, setCurrentKid, addKid, updateKid, removeKid, addBonus, getBalance, updateChore } = useStore();
   const today = todayStr();
 
   const pendingCount = state.completions.filter(c => c.status === 'submitted').length
     + state.redemptions.filter(r => r.status === 'requested').length;
 
-  // Kid detail modal
   const [detailKid, setDetailKid] = useState<Kid | null>(null);
-
-  // Add kid modal
   const [showAddKid, setShowAddKid] = useState(false);
   const [kidForm, setKidForm] = useState({ name: '', pin: '', color: AVATAR_COLORS[0] });
-
-  // Bonus modal
   const [bonusKid, setBonusKid] = useState<Kid | null>(null);
   const [bonusVal, setBonusVal] = useState('');
   const [bonusNote, setBonusNote] = useState('');
+  // Reassign sheet
+  const [reassignChore, setReassignChore] = useState<Chore | null>(null);
 
   function handleSaveKid() {
     if (!kidForm.name.trim()) return Alert.alert('Name required');
@@ -51,6 +54,16 @@ export default function FamilyScreen() {
       { text: 'Remove', style: 'destructive', onPress: () => { removeKid(kid.id); setDetailKid(null); } },
     ]);
   }
+
+  function handleReassign(kid: Kid) {
+    if (!reassignChore) return;
+    updateChore(reassignChore.id, { assignment: { kid: true, kidId: kid.id } });
+    setReassignChore(null);
+  }
+
+  const detailChores = detailKid
+    ? state.chores.filter(c => 'kid' in c.assignment && c.assignment.kidId === detailKid.id)
+    : [];
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
@@ -75,38 +88,29 @@ export default function FamilyScreen() {
           {state.kids.map(kid => {
             const balance = getBalance(kid.id);
             return (
-              <TouchableOpacity
-                key={kid.id}
-                style={s.kidRow}
-                onPress={() => setDetailKid(kid)}
-                activeOpacity={0.7}
-              >
+              <TouchableOpacity key={kid.id} style={s.kidRow} onPress={() => setDetailKid(kid)} activeOpacity={0.7}>
                 <View style={[s.avatar, { backgroundColor: kid.avatarColor }]}>
                   <Text style={s.avatarText}>{kid.name[0].toUpperCase()}</Text>
                 </View>
                 <Text style={s.kidName}>{kid.name}</Text>
-                <Text style={s.starCount}>☆ {balance}</Text>
-                <Text style={s.chevron}>›</Text>
+                <Ionicons name="star" size={14} color={COLORS.star} />
+                <Text style={s.starCount}>{balance}</Text>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
               </TouchableOpacity>
             );
           })}
-
           {state.kids.length === 0 && (
             <Text style={s.empty}>No kids yet. Tap "+ Kid" to add one.</Text>
           )}
         </View>
 
         {pendingCount > 0 && (
-          <TouchableOpacity
-            style={s.pendingBanner}
-            onPress={() => router.navigate('/parent/approvals')}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={s.pendingBanner} onPress={() => router.navigate('/parent/approvals')} activeOpacity={0.7}>
             <View style={s.pendingIcon}>
-              <Text style={{ fontSize: 18 }}>🕐</Text>
+              <Ionicons name="time-outline" size={22} color={COLORS.textSecondary} />
             </View>
-            <Text style={s.pendingText}>{pendingCount} chore{pendingCount !== 1 ? 's' : ''} waiting for review</Text>
-            <Text style={s.chevron}>›</Text>
+            <Text style={s.pendingText}>{pendingCount} item{pendingCount !== 1 ? 's' : ''} waiting for review</Text>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -121,7 +125,10 @@ export default function FamilyScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.modalTitle}>{detailKid.name}</Text>
-                <Text style={s.modalSub}>⭐ {getBalance(detailKid.id)} stars</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                  <Ionicons name="star" size={13} color={COLORS.star} />
+                  <Text style={s.modalSub}>{getBalance(detailKid.id)} stars</Text>
+                </View>
               </View>
               <TouchableOpacity onPress={() => setDetailKid(null)}>
                 <Text style={s.closeBtn}>Done</Text>
@@ -130,7 +137,7 @@ export default function FamilyScreen() {
 
             <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
               <Text style={s.sectionLabel}>Assigned chores</Text>
-              {state.chores.filter(c => 'kid' in c.assignment && c.assignment.kidId === detailKid.id).map(chore => {
+              {detailChores.map(chore => {
                 const dueDate = getOccurrenceDate(chore.repeatRule, today);
                 const urgency = getUrgency(dueDate, today);
                 const completion = state.completions.find(
@@ -139,20 +146,44 @@ export default function FamilyScreen() {
                 return (
                   <View key={chore.id} style={s.choreRow}>
                     <View style={[s.urgencyDot, { backgroundColor: URGENCY_COLORS[urgency] }]} />
+                    {chore.icon && (
+                      <Ionicons name={chore.icon as React.ComponentProps<typeof Ionicons>['name']} size={16} color={COLORS.textSecondary} />
+                    )}
                     <View style={{ flex: 1 }}>
                       <Text style={s.choreTitle}>{chore.title}</Text>
                       <Text style={s.choreMeta}>{dueDate}</Text>
                     </View>
-                    <Text style={s.choreStars}>⭐ {chore.stars}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, marginRight: 8 }}>
+                      <Ionicons name="star" size={12} color={COLORS.star} />
+                      <Text style={s.choreStars}>{chore.stars}</Text>
+                    </View>
                     {completion && (
-                      <Text style={[s.statusPill, { color: completion.status === 'approved' ? COLORS.success : COLORS.star }]}>
-                        {completion.status === 'approved' ? '✓' : '⏳'}
-                      </Text>
+                      <Ionicons
+                        name={completion.status === 'approved' ? 'checkmark-circle' : 'time-outline'}
+                        size={16}
+                        color={completion.status === 'approved' ? COLORS.success : COLORS.star}
+                      />
                     )}
+                    {/* Reassign */}
+                    <TouchableOpacity
+                      onPress={() => setReassignChore(chore)}
+                      style={s.choreAction}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="swap-horizontal-outline" size={18} color={COLORS.primary} />
+                    </TouchableOpacity>
+                    {/* Edit */}
+                    <TouchableOpacity
+                      onPress={() => { setDetailKid(null); router.push({ pathname: '/parent/edit-chore', params: { choreId: chore.id } }); }}
+                      style={s.choreAction}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="create-outline" size={18} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
                   </View>
                 );
               })}
-              {state.chores.filter(c => 'kid' in c.assignment && c.assignment.kidId === detailKid.id).length === 0 && (
+              {detailChores.length === 0 && (
                 <Text style={s.empty}>No chores assigned.</Text>
               )}
 
@@ -160,7 +191,8 @@ export default function FamilyScreen() {
                 style={[s.actionRow, { marginTop: 8 }]}
                 onPress={() => { setDetailKid(null); setBonusKid(detailKid); setBonusVal(''); setBonusNote(''); }}
               >
-                <Text style={s.actionText}>⭐ Give bonus stars</Text>
+                <Ionicons name="star-outline" size={16} color={COLORS.primary} />
+                <Text style={s.actionText}>Give bonus stars</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.actionRow} onPress={() => handleDeleteKid(detailKid)}>
                 <Text style={[s.actionText, { color: COLORS.danger }]}>Remove {detailKid.name}</Text>
@@ -168,6 +200,28 @@ export default function FamilyScreen() {
             </ScrollView>
           </SafeAreaView>
         )}
+      </Modal>
+
+      {/* Reassign sheet */}
+      <Modal visible={reassignChore !== null} animationType="slide" presentationStyle="pageSheet" transparent>
+        <View style={s.overlay}>
+          <View style={s.sheet}>
+            <Text style={s.sheetTitle}>Reassign "{reassignChore?.title}"</Text>
+            <Text style={s.sheetSub}>Pick who this chore goes to</Text>
+            {state.kids.map(kid => (
+              <TouchableOpacity key={kid.id} style={s.kidPill} onPress={() => handleReassign(kid)} activeOpacity={0.8}>
+                <View style={[s.avatar, { backgroundColor: kid.avatarColor }]}>
+                  <Text style={s.avatarText}>{kid.name[0]}</Text>
+                </View>
+                <Text style={s.kidPillName}>{kid.name}</Text>
+                <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={s.cancelBtn} onPress={() => setReassignChore(null)}>
+              <Text style={s.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* Add Kid modal */}
@@ -267,12 +321,11 @@ const s = StyleSheet.create({
   exitText: { color: COLORS.textSecondary, fontSize: 14 },
   scroll: { paddingHorizontal: 16, paddingBottom: 32 },
   section: { backgroundColor: COLORS.card, borderRadius: 16, overflow: 'hidden', marginBottom: 14 },
-  kidRow: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  kidRow: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   avatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 18, fontWeight: '700', color: '#fff' },
   kidName: { flex: 1, fontSize: 17, fontWeight: '600', color: COLORS.textPrimary },
   starCount: { fontSize: 15, color: COLORS.star, fontWeight: '600' },
-  chevron: { fontSize: 20, color: COLORS.textSecondary, marginLeft: 4 },
   empty: { color: COLORS.textSecondary, padding: 16, textAlign: 'center', fontSize: 14 },
   pendingBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 16, padding: 14, gap: 12 },
   pendingIcon: { width: 42, height: 42, borderRadius: 10, backgroundColor: COLORS.cardElevated, alignItems: 'center', justifyContent: 'center' },
@@ -280,17 +333,27 @@ const s = StyleSheet.create({
   // Modals
   modalHeader: { flexDirection: 'row', alignItems: 'center', padding: 18, gap: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   modalTitle: { flex: 1, fontSize: 19, fontWeight: '700', color: COLORS.textPrimary },
-  modalSub: { fontSize: 13, color: COLORS.star, marginTop: 2 },
+  modalSub: { fontSize: 13, color: COLORS.star },
   closeBtn: { fontSize: 16, color: COLORS.primary, fontWeight: '600' },
   sectionLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
-  choreRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 12, padding: 12, gap: 10 },
-  urgencyDot: { width: 8, height: 8, borderRadius: 4 },
-  choreTitle: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
-  choreMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  choreRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 12, padding: 10, gap: 8 },
+  urgencyDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+  choreTitle: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary },
+  choreMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 1 },
   choreStars: { fontSize: 13, color: COLORS.star },
-  statusPill: { fontSize: 16, fontWeight: '700' },
-  actionRow: { backgroundColor: COLORS.card, borderRadius: 12, padding: 14, alignItems: 'center' },
+  choreAction: { padding: 2 },
+  actionRow: { backgroundColor: COLORS.card, borderRadius: 12, padding: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
   actionText: { fontSize: 15, color: COLORS.primary, fontWeight: '600' },
+  // Reassign sheet
+  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet: { backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 10 },
+  sheetTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary },
+  sheetSub: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 6 },
+  kidPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.cardElevated, borderRadius: 14, padding: 14, gap: 12 },
+  kidPillName: { flex: 1, fontSize: 16, fontWeight: '600', color: COLORS.textPrimary },
+  cancelBtn: { backgroundColor: COLORS.bg, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
+  cancelText: { color: COLORS.textSecondary, fontSize: 15, fontWeight: '600' },
+  // Add kid form
   form: { padding: 20, gap: 6, paddingBottom: 40 },
   formLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 10 },
   input: { backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16, color: COLORS.textPrimary },
@@ -299,6 +362,5 @@ const s = StyleSheet.create({
   swatchSelected: { borderWidth: 3, borderColor: '#fff' },
   saveBtn: { backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 16 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   bonusSheet: { backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 6 },
 });

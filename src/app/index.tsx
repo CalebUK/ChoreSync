@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, Switch, Alert, Image } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -175,7 +176,7 @@ export default function HubScreen() {
                 <Text style={s.avatarText}>{kid.name[0].toUpperCase()}</Text>
               </View>
               <Text style={s.kidName}>{kid.name}</Text>
-              <Text style={s.chevron}>›</Text>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           ))}
 

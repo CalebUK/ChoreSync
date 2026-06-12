@@ -1,5 +1,6 @@
 import { ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useStore, COLORS } from '@/store';
 
 function timeAgo(iso: string) {
@@ -37,7 +38,6 @@ export default function ParentApprovalsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.scroll}>
-
         {/* Chore completions */}
         {pendingCompletions.length > 0 && (
           <>
@@ -47,7 +47,6 @@ export default function ParentApprovalsScreen() {
               const kidColor = getKidColor(c.kidId);
               return (
                 <View key={c.id} style={s.card}>
-                  {/* Kid + chore header */}
                   <View style={s.cardHeader}>
                     <View style={[s.kidDot, { backgroundColor: kidColor }]}>
                       <Text style={s.kidDotText}>{getKidName(c.kidId)[0]}</Text>
@@ -56,31 +55,40 @@ export default function ParentApprovalsScreen() {
                       <Text style={s.cardTitle}>{getChoreName(c.choreId)}</Text>
                       <Text style={s.cardSub}>{getKidName(c.kidId)} · {timeAgo(c.submittedAt)}</Text>
                     </View>
-                    <Text style={s.starBadge}>☆ {stars}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="star" size={13} color={COLORS.star} />
+                      <Text style={s.starBadge}>{stars}</Text>
+                    </View>
                   </View>
 
-                  {/* Photo placeholder */}
+                  {/* Photo area */}
                   <View style={s.photoArea}>
                     {c.photoUri ? (
-                      <Text style={s.photoPlaceholderText}>📷 Photo attached</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="camera-outline" size={16} color={COLORS.primary} />
+                        <Text style={s.photoPlaceholderText}>Photo attached</Text>
+                      </View>
                     ) : (
                       <View style={s.photoPlaceholder}>
-                        <Text style={s.photoIcon}>📷</Text>
+                        <Ionicons name="camera-outline" size={28} color={COLORS.textSecondary} style={{ opacity: 0.4 }} />
                         <Text style={s.photoMeta}>No photo · {timeAgo(c.submittedAt)}</Text>
                       </View>
                     )}
                   </View>
 
-                  {/* Due date row */}
-                  <Text style={s.dueText}>Due {c.dueDate}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 }}>
+                    <Ionicons name="time-outline" size={13} color={COLORS.textSecondary} />
+                    <Text style={s.dueText}>Due {c.dueDate}</Text>
+                  </View>
 
-                  {/* Actions */}
                   <View style={s.actions}>
                     <TouchableOpacity style={s.approveBtn} onPress={() => approveCompletion(c.id)} activeOpacity={0.8}>
-                      <Text style={s.approveBtnText}>✓ Approve · {stars}</Text>
+                      <Ionicons name="checkmark" size={16} color="#fff" />
+                      <Text style={s.approveBtnText}>Approve · {stars}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={s.rejectBtn} onPress={() => rejectCompletion(c.id)} activeOpacity={0.8}>
-                      <Text style={s.rejectBtnText}>✕ Reject</Text>
+                      <Ionicons name="close" size={16} color={COLORS.textSecondary} />
+                      <Text style={s.rejectBtnText}>Reject</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -105,7 +113,10 @@ export default function ParentApprovalsScreen() {
                       <Text style={s.cardTitle}>{getRewardName(r.rewardId)}</Text>
                       <Text style={s.cardSub}>{getKidName(r.kidId)} · {timeAgo(r.requestedAt)}</Text>
                     </View>
-                    <Text style={s.starBadge}>☆ {r.starsDeducted}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="star" size={13} color={COLORS.star} />
+                      <Text style={s.starBadge}>{r.starsDeducted}</Text>
+                    </View>
                   </View>
 
                   <View style={s.infoRow}>
@@ -114,10 +125,12 @@ export default function ParentApprovalsScreen() {
 
                   <View style={s.actions}>
                     <TouchableOpacity style={s.approveBtn} onPress={() => approveRedemption(r.id)} activeOpacity={0.8}>
-                      <Text style={s.approveBtnText}>✓ Approve</Text>
+                      <Ionicons name="checkmark" size={16} color="#fff" />
+                      <Text style={s.approveBtnText}>Approve</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={s.rejectBtn} onPress={() => declineRedemption(r.id)} activeOpacity={0.8}>
-                      <Text style={s.rejectBtnText}>✕ Decline</Text>
+                      <Ionicons name="close" size={16} color={COLORS.textSecondary} />
+                      <Text style={s.rejectBtnText}>Decline</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -142,7 +155,8 @@ export default function ParentApprovalsScreen() {
                   </View>
                 </View>
                 <TouchableOpacity style={[s.approveBtn, { marginTop: 10 }]} onPress={() => markRewardGiven(r.id)} activeOpacity={0.8}>
-                  <Text style={s.approveBtnText}>Mark given 🎁</Text>
+                  <Ionicons name="gift-outline" size={16} color="#fff" />
+                  <Text style={s.approveBtnText}>Mark given</Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -151,7 +165,7 @@ export default function ParentApprovalsScreen() {
 
         {totalPending === 0 && toGive.length === 0 && (
           <View style={s.allDone}>
-            <Text style={s.allDoneEmoji}>🎉</Text>
+            <Ionicons name="checkmark-circle-outline" size={52} color={COLORS.success} />
             <Text style={s.allDoneText}>All caught up!</Text>
           </View>
         )}
@@ -178,18 +192,16 @@ const s = StyleSheet.create({
   starBadge: { fontSize: 15, color: COLORS.star, fontWeight: '700' },
   photoArea: { backgroundColor: COLORS.cardElevated, borderRadius: 10, minHeight: 80, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   photoPlaceholder: { alignItems: 'center', gap: 6, paddingVertical: 16 },
-  photoIcon: { fontSize: 28, opacity: 0.4 },
   photoMeta: { fontSize: 12, color: COLORS.textSecondary },
   photoPlaceholderText: { color: COLORS.primary, fontSize: 14 },
-  dueText: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 12 },
+  dueText: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 0 },
   infoRow: { backgroundColor: COLORS.cardElevated, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 12 },
   infoText: { fontSize: 13, color: COLORS.textSecondary },
   actions: { flexDirection: 'row', gap: 8 },
-  approveBtn: { flex: 1, backgroundColor: COLORS.success, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  approveBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: COLORS.success, borderRadius: 10, paddingVertical: 12 },
   approveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  rejectBtn: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.borderLight },
+  rejectBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, paddingVertical: 12, borderWidth: 1, borderColor: COLORS.borderLight },
   rejectBtnText: { color: COLORS.textSecondary, fontWeight: '600', fontSize: 15 },
   allDone: { alignItems: 'center', marginTop: 80, gap: 10 },
-  allDoneEmoji: { fontSize: 52 },
   allDoneText: { fontSize: 18, fontWeight: '600', color: COLORS.textSecondary },
 });

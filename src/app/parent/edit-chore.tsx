@@ -4,6 +4,7 @@ import {
   ScrollView, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore, COLORS, todayStr } from '@/store';
 import Calendar from '@/components/Calendar';
@@ -19,8 +20,8 @@ const CHORE_ICONS: Array<React.ComponentProps<typeof Ionicons>['name']> = [
   'brush-outline', 'cube-outline', 'body-outline', 'camera-outline',
 ];
 
-const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const WEEKDAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function formatShortDate(d: string) {
   const [y, m, day] = d.split('-').map(Number);
@@ -42,26 +43,43 @@ interface Form {
   requiresApproval: boolean;
 }
 
-function freshForm(firstKidId: string): Form {
-  return {
-    icon: '',
-    title: '',
-    assignType: 'kid',
-    kidId: firstKidId,
-    repeatType: 'once',
-    date: todayStr(),
-    weekday: new Date().getDay(),
-    startDate: todayStr(),
-    stars: 10,
-    latePolicy: 'full',
-    requiresPhoto: false,
-    requiresApproval: false,
-  };
-}
+export default function EditChoreScreen() {
+  const { choreId } = useLocalSearchParams<{ choreId: string }>();
+  const { state, updateChore, deleteChore } = useStore();
 
-export default function AddChoreScreen() {
-  const { state, addChore } = useStore();
-  const [form, setForm] = useState<Form>(() => freshForm(state.kids[0]?.id ?? ''));
+  const chore = state.chores.find(c => c.id === choreId);
+
+  const [form, setForm] = useState<Form>(() => {
+    if (!chore) return {
+      icon: '', title: '', assignType: 'kid', kidId: state.kids[0]?.id ?? '',
+      repeatType: 'once', date: todayStr(), weekday: new Date().getDay(),
+      startDate: todayStr(), stars: 10, latePolicy: 'full',
+      requiresPhoto: false, requiresApproval: false,
+    };
+    const assignType: 'kid' | 'free' | 'everyone' =
+      'kid' in chore.assignment ? 'kid' :
+      'free' in chore.assignment ? 'free' : 'everyone';
+    const kidId = 'kid' in chore.assignment ? chore.assignment.kidId : (state.kids[0]?.id ?? '');
+    const repeatType: 'once' | 'daily' | 'weekly' =
+      'once' in chore.repeatRule ? 'once' :
+      'daily' in chore.repeatRule ? 'daily' : 'weekly';
+    const date = 'once' in chore.repeatRule ? chore.repeatRule.date : todayStr();
+    const startDate = 'daily' in chore.repeatRule ? chore.repeatRule.startDate :
+      'weekly' in chore.repeatRule ? chore.repeatRule.startDate : todayStr();
+    const weekday = 'weekly' in chore.repeatRule ? chore.repeatRule.weekday : new Date().getDay();
+    return {
+      icon: chore.icon ?? '',
+      title: chore.title,
+      assignType, kidId, repeatType, date, weekday, startDate,
+      stars: chore.stars, latePolicy: chore.latePolicy,
+      requiresPhoto: chore.requiresPhoto, requiresApproval: chore.requiresApproval,
+    };
+  });
+
+  if (!chore) {
+    router.back();
+    return null;
+  }
 
   function set<K extends keyof Form>(key: K, val: Form[K]) {
     setForm(f => ({ ...f, [key]: val }));
@@ -79,10 +97,10 @@ export default function AddChoreScreen() {
     return { kid: true, kidId: form.kidId };
   }
 
-  function handleSave(andAnother = false) {
+  function handleSave() {
     if (!form.title.trim()) return Alert.alert('Add a title first');
     if (form.assignType === 'kid' && !form.kidId) return Alert.alert('Pick a kid, or use Free/All');
-    addChore({
+    updateChore(chore!.id, {
       icon: form.icon || undefined,
       title: form.title.trim(),
       stars: form.stars,
@@ -92,12 +110,14 @@ export default function AddChoreScreen() {
       requiresPhoto: form.requiresPhoto,
       requiresApproval: form.requiresApproval,
     });
-    if (andAnother) {
-      setForm(f => ({ ...freshForm(state.kids[0]?.id ?? ''), assignType: f.assignType, kidId: f.kidId }));
-    } else {
-      setForm(freshForm(state.kids[0]?.id ?? ''));
-    }
-    Alert.alert('Saved', andAnother ? 'Add another!' : '');
+    router.back();
+  }
+
+  function handleDelete() {
+    Alert.alert(`Delete "${chore!.title}"?`, 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => { deleteChore(chore!.id); router.back(); } },
+    ]);
   }
 
   const selectedDate = form.repeatType === 'once' ? form.date : form.startDate;
@@ -105,9 +125,17 @@ export default function AddChoreScreen() {
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={s.scroll} keyboardDismissMode="on-drag">
-          <Text style={s.screenTitle}>New chore</Text>
+        <View style={s.navBar}>
+          <TouchableOpacity onPress={() => router.back()} style={s.navBtn}>
+            <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+          <Text style={s.navTitle}>Edit chore</Text>
+          <TouchableOpacity onPress={handleDelete} style={s.navBtn}>
+            <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
+          </TouchableOpacity>
+        </View>
 
+        <ScrollView contentContainerStyle={s.scroll} keyboardDismissMode="on-drag">
           {/* Icon picker */}
           <Text style={s.label}>Icon</Text>
           <View style={s.iconPreviewRow}>
@@ -173,7 +201,7 @@ export default function AddChoreScreen() {
           {form.assignType === 'free' && <Text style={s.assignNote}>Free for all — first to complete wins.</Text>}
           {form.assignType === 'everyone' && <Text style={s.assignNote}>Every kid gets their own copy.</Text>}
 
-          {/* Due date / Calendar */}
+          {/* Due date */}
           <Text style={s.label}>Due date</Text>
           <Calendar
             selected={selectedDate}
@@ -191,7 +219,6 @@ export default function AddChoreScreen() {
             ))}
           </View>
 
-          {/* Selected date display */}
           <View style={s.datePill}>
             <Ionicons name="calendar-outline" size={14} color={COLORS.primary} />
             <Text style={s.datePillText}>
@@ -201,7 +228,6 @@ export default function AddChoreScreen() {
             </Text>
           </View>
 
-          {/* Weekly: weekday picker */}
           {form.repeatType === 'weekly' && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.pillRow}>
               {WEEKDAY_LABELS.map((d, i) => (
@@ -212,7 +238,7 @@ export default function AddChoreScreen() {
             </ScrollView>
           )}
 
-          {/* Reward (stars) */}
+          {/* Stars */}
           <Text style={s.label}>Reward</Text>
           <View style={s.starPicker}>
             <TouchableOpacity style={s.starBtn} onPress={() => set('stars', Math.max(1, form.stars - 1))}>
@@ -267,12 +293,8 @@ export default function AddChoreScreen() {
             </View>
           </View>
 
-          {/* Save buttons */}
-          <TouchableOpacity style={s.saveBtn} onPress={() => handleSave(false)}>
-            <Text style={s.saveBtnText}>Create</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.saveBtnSecondary} onPress={() => handleSave(true)}>
-            <Text style={s.saveBtnSecondaryText}>Create &amp; add another</Text>
+          <TouchableOpacity style={s.saveBtn} onPress={handleSave}>
+            <Text style={s.saveBtnText}>Save changes</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -282,13 +304,12 @@ export default function AddChoreScreen() {
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
+  navBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  navBtn: { padding: 6 },
+  navTitle: { flex: 1, fontSize: 20, fontWeight: '700', color: COLORS.textPrimary, textAlign: 'center' },
   scroll: { paddingHorizontal: 16, paddingBottom: 48 },
-  screenTitle: { fontSize: 26, fontWeight: '700', color: COLORS.textPrimary, paddingTop: 16, paddingBottom: 20 },
-  titleInput: {
-    fontSize: 18, color: COLORS.textPrimary, backgroundColor: COLORS.card,
-    borderRadius: 14, padding: 16, marginBottom: 22,
-  },
-  label: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 10 },
+  label: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 10, marginTop: 18 },
+  titleInput: { fontSize: 18, color: COLORS.textPrimary, backgroundColor: COLORS.card, borderRadius: 14, padding: 16, marginBottom: 4 },
   iconPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
   iconPreview: { width: 52, height: 52, borderRadius: 14, backgroundColor: COLORS.card, borderWidth: 2, borderColor: COLORS.borderLight, alignItems: 'center', justifyContent: 'center' },
   iconGrid: { flexDirection: 'row', flexWrap: 'nowrap', gap: 8, paddingVertical: 4 },
@@ -299,7 +320,7 @@ const s = StyleSheet.create({
   pillActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   pillText: { color: COLORS.textSecondary, fontSize: 15, fontWeight: '500' },
   pillTextActive: { color: '#fff', fontWeight: '700' },
-  assignNote: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 18 },
+  assignNote: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 8 },
   seg: { flexDirection: 'row', backgroundColor: COLORS.card, borderRadius: 12, padding: 3, marginBottom: 10 },
   segBtn: { flex: 1, borderRadius: 10, paddingVertical: 9, alignItems: 'center' },
   segBtnActive: { backgroundColor: COLORS.primary },
@@ -307,7 +328,7 @@ const s = StyleSheet.create({
   segTextActive: { color: '#fff', fontWeight: '700' },
   datePill: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 18, marginTop: 6 },
   datePillText: { fontSize: 14, color: COLORS.primary, fontWeight: '500' },
-  starPicker: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 14, overflow: 'hidden', marginBottom: 22 },
+  starPicker: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 14, overflow: 'hidden', marginBottom: 4 },
   starBtn: { paddingHorizontal: 24, paddingVertical: 18 },
   starBtnText: { fontSize: 24, color: COLORS.textPrimary, fontWeight: '300' },
   starDisplay: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
@@ -318,6 +339,4 @@ const s = StyleSheet.create({
   toggleSub: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
   saveBtn: { backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 10 },
   saveBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  saveBtnSecondary: { borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
-  saveBtnSecondaryText: { color: COLORS.textSecondary, fontSize: 15, fontWeight: '500' },
 });

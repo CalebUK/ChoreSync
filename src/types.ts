@@ -30,7 +30,7 @@ export interface Chore {
   id: string;
   familyId: string;
   title: string;
-  icon?: string; // emoji, e.g. '🧹'
+  icon?: string; // Ionicons name, e.g. 'restaurant-outline'
   description?: string;
   stars: number;
   repeatRule: RepeatRule;
