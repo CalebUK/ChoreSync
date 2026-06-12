@@ -1,343 +1,252 @@
 import { useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, Modal,
-  TextInput, Switch, ScrollView, KeyboardAvoidingView, Platform, Alert,
+  View, Text, TouchableOpacity, StyleSheet, Modal, FlatList,
+  ScrollView, Alert, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import {
-  useStore, COLORS, URGENCY_COLORS, todayStr, getOccurrenceDate, getUrgency,
-} from '@/store';
-import type { Chore, RepeatRule, LatePolicy, Assignment } from '@/types';
+import { useStore, COLORS, getOccurrenceDate, getUrgency, URGENCY_COLORS, todayStr } from '@/store';
+import type { Kid } from '@/types';
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const AVATAR_COLORS = ['#EC4899', '#3B82F6', '#22C55E', '#F59E0B', '#8B5CF6', '#EF4444'];
 
-interface ChoreForm {
-  title: string;
-  stars: string;
-  assignType: 'kid' | 'free';
-  kidId: string;
-  repeatType: 'once' | 'daily' | 'weekly';
-  date: string;
-  weekday: number;
-  startDate: string;
-  latePolicy: LatePolicy;
-  requiresApproval: boolean;
-  requiresPhoto: boolean;
-}
-
-const emptyForm = (firstKidId: string): ChoreForm => ({
-  title: '',
-  stars: '3',
-  assignType: 'kid',
-  kidId: firstKidId,
-  repeatType: 'once',
-  date: todayStr(),
-  weekday: new Date().getDay(),
-  startDate: todayStr(),
-  latePolicy: 'full',
-  requiresApproval: false,
-  requiresPhoto: false,
-});
-
-export default function ParentChoresScreen() {
-  const { state, addChore, updateChore, deleteChore, setRole } = useStore();
+export default function FamilyScreen() {
+  const { state, setRole, setCurrentKid, addKid, updateKid, removeKid, addBonus, getBalance } = useStore();
   const today = todayStr();
 
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [form, setForm] = useState<ChoreForm>(emptyForm(state.kids[0]?.id ?? ''));
+  const pendingCount = state.completions.filter(c => c.status === 'submitted').length
+    + state.redemptions.filter(r => r.status === 'requested').length;
 
-  function openAdd() {
-    setEditing(null);
-    setForm(emptyForm(state.kids[0]?.id ?? ''));
-    setShowModal(true);
+  // Kid detail modal
+  const [detailKid, setDetailKid] = useState<Kid | null>(null);
+
+  // Add kid modal
+  const [showAddKid, setShowAddKid] = useState(false);
+  const [kidForm, setKidForm] = useState({ name: '', pin: '', color: AVATAR_COLORS[0] });
+
+  // Bonus modal
+  const [bonusKid, setBonusKid] = useState<Kid | null>(null);
+  const [bonusVal, setBonusVal] = useState('');
+  const [bonusNote, setBonusNote] = useState('');
+
+  function handleSaveKid() {
+    if (!kidForm.name.trim()) return Alert.alert('Name required');
+    if (!/^\d{4}$/.test(kidForm.pin)) return Alert.alert('PIN must be 4 digits');
+    addKid(kidForm.name.trim(), kidForm.pin, kidForm.color);
+    setShowAddKid(false);
+    setKidForm({ name: '', pin: '', color: AVATAR_COLORS[0] });
   }
 
-  function openEdit(chore: Chore) {
-    setEditing(chore.id);
-    const assignment = chore.assignment;
-    const rule = chore.repeatRule;
-    setForm({
-      title: chore.title,
-      stars: String(chore.stars),
-      assignType: 'free' in assignment ? 'free' : 'kid',
-      kidId: 'kid' in assignment ? assignment.kidId : state.kids[0]?.id ?? '',
-      repeatType: 'once' in rule ? 'once' : 'daily' in rule ? 'daily' : 'weekly',
-      date: 'once' in rule ? rule.date : todayStr(),
-      weekday: 'weekly' in rule ? rule.weekday : new Date().getDay(),
-      startDate: 'daily' in rule ? rule.startDate : 'weekly' in rule ? rule.startDate : todayStr(),
-      latePolicy: chore.latePolicy,
-      requiresApproval: chore.requiresApproval,
-      requiresPhoto: chore.requiresPhoto,
-    });
-    setShowModal(true);
+  function handleBonus() {
+    const n = parseInt(bonusVal, 10);
+    if (!bonusKid || isNaN(n) || n === 0) return Alert.alert('Enter a non-zero number');
+    addBonus(bonusKid.id, n, bonusNote.trim() || undefined);
+    setBonusKid(null);
   }
 
-  function buildRepeatRule(): RepeatRule {
-    if (form.repeatType === 'once') return { once: true, date: form.date || todayStr() };
-    if (form.repeatType === 'daily') return { daily: true, startDate: form.startDate };
-    return { weekly: true, startDate: form.startDate, weekday: form.weekday };
-  }
-
-  function buildAssignment(): Assignment {
-    if (form.assignType === 'free') return { free: true };
-    return { kid: true, kidId: form.kidId };
-  }
-
-  function handleSave() {
-    if (!form.title.trim()) return Alert.alert('Title required');
-    const stars = parseInt(form.stars, 10);
-    if (isNaN(stars) || stars < 1) return Alert.alert('Stars must be a positive number');
-
-    const data: Omit<Chore, 'id' | 'familyId'> = {
-      title: form.title.trim(),
-      stars,
-      repeatRule: buildRepeatRule(),
-      latePolicy: form.latePolicy,
-      assignment: buildAssignment(),
-      requiresPhoto: form.requiresPhoto,
-      requiresApproval: form.requiresApproval,
-    };
-
-    if (editing) {
-      updateChore(editing, data);
-    } else {
-      addChore(data);
-    }
-    setShowModal(false);
-  }
-
-  function handleDelete(id: string) {
-    Alert.alert('Delete chore?', 'This cannot be undone.', [
+  function handleDeleteKid(kid: Kid) {
+    Alert.alert(`Remove ${kid.name}?`, 'History is kept; only the profile is removed.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteChore(id) },
+      { text: 'Remove', style: 'destructive', onPress: () => { removeKid(kid.id); setDetailKid(null); } },
     ]);
-  }
-
-  function getKidName(chore: Chore): string {
-    const a = chore.assignment;
-    if ('free' in a) return 'Anyone';
-    if ('everyone' in a) return 'Everyone';
-    if ('kid' in a) return state.kids.find(k => k.id === a.kidId)?.name ?? '?';
-    return '?';
-  }
-
-  function renderChore({ item }: { item: Chore }) {
-    const occDate = getOccurrenceDate(item.repeatRule, today);
-    const urgency = getUrgency(occDate, today);
-    const kidName = getKidName(item);
-    const repeatLabel =
-      'once' in item.repeatRule ? `Once · ${item.repeatRule.date}` :
-      'daily' in item.repeatRule ? 'Daily' :
-      `Weekly · ${WEEKDAYS[item.repeatRule.weekday]}`;
-
-    return (
-      <TouchableOpacity style={s.choreCard} onPress={() => openEdit(item)} activeOpacity={0.8}>
-        <View style={[s.urgencyBar, { backgroundColor: URGENCY_COLORS[urgency] }]} />
-        <View style={s.choreBody}>
-          <View style={s.choreRow}>
-            <Text style={s.choreTitle}>{item.title}</Text>
-            <Text style={s.choreStars}>⭐ {item.stars}</Text>
-          </View>
-          <View style={s.choreRow}>
-            <Text style={s.choreMeta}>{kidName} · {repeatLabel}</Text>
-            <Text style={[s.choreDue, { color: URGENCY_COLORS[urgency] }]}>{occDate}</Text>
-          </View>
-          <View style={s.badges}>
-            {item.requiresApproval && <Text style={s.badge}>Needs approval</Text>}
-            {item.requiresPhoto && <Text style={s.badge}>📷 Photo</Text>}
-          </View>
-        </View>
-        <TouchableOpacity onPress={() => handleDelete(item.id)} style={s.deleteBtn}>
-          <Text style={s.deleteBtnText}>✕</Text>
-        </TouchableOpacity>
-      </TouchableOpacity>
-    );
   }
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
-      <View style={s.titleRow}>
-        <Text style={s.screenTitle}>Chores</Text>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity style={s.addBtn} onPress={openAdd}>
-            <Text style={s.addBtnText}>+ Add</Text>
+      <View style={s.header}>
+        <Text style={s.title}>Family</Text>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <TouchableOpacity onPress={() => setShowAddKid(true)} style={s.addKidBtn}>
+            <Text style={s.addKidText}>+ Kid</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => { setRole(null); router.replace('/'); }} style={s.exitBtn}>
-            <Text style={s.exitBtnText}>Exit</Text>
+            <Text style={s.exitText}>Exit</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      <FlatList
-        data={state.chores}
-        keyExtractor={c => c.id}
-        renderItem={renderChore}
-        contentContainerStyle={s.list}
-        ListEmptyComponent={<Text style={s.empty}>No chores yet. Tap "+ Add" to create one.</Text>}
-      />
+      <ScrollView contentContainerStyle={s.scroll}>
+        <View style={s.section}>
+          {state.kids.map(kid => {
+            const balance = getBalance(kid.id);
+            return (
+              <TouchableOpacity
+                key={kid.id}
+                style={s.kidRow}
+                onPress={() => setDetailKid(kid)}
+                activeOpacity={0.7}
+              >
+                <View style={[s.avatar, { backgroundColor: kid.avatarColor }]}>
+                  <Text style={s.avatarText}>{kid.name[0].toUpperCase()}</Text>
+                </View>
+                <Text style={s.kidName}>{kid.name}</Text>
+                <Text style={s.starCount}>☆ {balance}</Text>
+                <Text style={s.chevron}>›</Text>
+              </TouchableOpacity>
+            );
+          })}
 
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet">
+          {state.kids.length === 0 && (
+            <Text style={s.empty}>No kids yet. Tap "+ Kid" to add one.</Text>
+          )}
+        </View>
+
+        {pendingCount > 0 && (
+          <TouchableOpacity
+            style={s.pendingBanner}
+            onPress={() => router.navigate('/parent/approvals')}
+            activeOpacity={0.7}
+          >
+            <View style={s.pendingIcon}>
+              <Text style={{ fontSize: 18 }}>🕐</Text>
+            </View>
+            <Text style={s.pendingText}>{pendingCount} chore{pendingCount !== 1 ? 's' : ''} waiting for review</Text>
+            <Text style={s.chevron}>›</Text>
+          </TouchableOpacity>
+        )}
+      </ScrollView>
+
+      {/* Kid detail modal */}
+      <Modal visible={detailKid !== null} animationType="slide" presentationStyle="pageSheet">
+        {detailKid && (
+          <SafeAreaView style={s.safe}>
+            <View style={s.modalHeader}>
+              <View style={[s.avatar, { backgroundColor: detailKid.avatarColor }]}>
+                <Text style={s.avatarText}>{detailKid.name[0].toUpperCase()}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.modalTitle}>{detailKid.name}</Text>
+                <Text style={s.modalSub}>⭐ {getBalance(detailKid.id)} stars</Text>
+              </View>
+              <TouchableOpacity onPress={() => setDetailKid(null)}>
+                <Text style={s.closeBtn}>Done</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
+              <Text style={s.sectionLabel}>Assigned chores</Text>
+              {state.chores.filter(c => 'kid' in c.assignment && c.assignment.kidId === detailKid.id).map(chore => {
+                const dueDate = getOccurrenceDate(chore.repeatRule, today);
+                const urgency = getUrgency(dueDate, today);
+                const completion = state.completions.find(
+                  co => co.choreId === chore.id && co.kidId === detailKid.id && co.dueDate === dueDate && co.status !== 'rejected'
+                );
+                return (
+                  <View key={chore.id} style={s.choreRow}>
+                    <View style={[s.urgencyDot, { backgroundColor: URGENCY_COLORS[urgency] }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.choreTitle}>{chore.title}</Text>
+                      <Text style={s.choreMeta}>{dueDate}</Text>
+                    </View>
+                    <Text style={s.choreStars}>⭐ {chore.stars}</Text>
+                    {completion && (
+                      <Text style={[s.statusPill, { color: completion.status === 'approved' ? COLORS.success : COLORS.star }]}>
+                        {completion.status === 'approved' ? '✓' : '⏳'}
+                      </Text>
+                    )}
+                  </View>
+                );
+              })}
+              {state.chores.filter(c => 'kid' in c.assignment && c.assignment.kidId === detailKid.id).length === 0 && (
+                <Text style={s.empty}>No chores assigned.</Text>
+              )}
+
+              <TouchableOpacity
+                style={[s.actionRow, { marginTop: 8 }]}
+                onPress={() => { setDetailKid(null); setBonusKid(detailKid); setBonusVal(''); setBonusNote(''); }}
+              >
+                <Text style={s.actionText}>⭐ Give bonus stars</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.actionRow} onPress={() => handleDeleteKid(detailKid)}>
+                <Text style={[s.actionText, { color: COLORS.danger }]}>Remove {detailKid.name}</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </SafeAreaView>
+        )}
+      </Modal>
+
+      {/* Add Kid modal */}
+      <Modal visible={showAddKid} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={s.safe}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Add a kid</Text>
+              <TouchableOpacity onPress={() => setShowAddKid(false)}>
+                <Text style={s.closeBtn}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
             <ScrollView contentContainerStyle={s.form}>
-              <View style={s.formHeader}>
-                <Text style={s.formTitle}>{editing ? 'Edit Chore' : 'New Chore'}</Text>
-                <TouchableOpacity onPress={() => setShowModal(false)}>
-                  <Text style={s.formClose}>✕</Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text style={s.label}>Title</Text>
+              <Text style={s.formLabel}>Name</Text>
               <TextInput
                 style={s.input}
-                value={form.title}
-                onChangeText={t => setForm(f => ({ ...f, title: t }))}
-                placeholder="e.g. Wash dishes"
+                value={kidForm.name}
+                onChangeText={t => setKidForm(f => ({ ...f, name: t }))}
+                placeholder="e.g. Mia"
                 placeholderTextColor={COLORS.textSecondary}
               />
-
-              <Text style={s.label}>Stars</Text>
+              <Text style={s.formLabel}>4-digit PIN</Text>
               <TextInput
                 style={s.input}
-                value={form.stars}
-                onChangeText={t => setForm(f => ({ ...f, stars: t }))}
+                value={kidForm.pin}
+                onChangeText={t => setKidForm(f => ({ ...f, pin: t.replace(/\D/g, '').slice(0, 4) }))}
                 keyboardType="numeric"
-                placeholder="3"
+                secureTextEntry
+                maxLength={4}
+                placeholder="1234"
                 placeholderTextColor={COLORS.textSecondary}
               />
-
-              <Text style={s.label}>Assign to</Text>
-              <View style={s.segmented}>
-                {(['kid', 'free'] as const).map(t => (
+              <Text style={s.formLabel}>Colour</Text>
+              <View style={s.colorRow}>
+                {AVATAR_COLORS.map(c => (
                   <TouchableOpacity
-                    key={t}
-                    style={[s.seg, form.assignType === t && s.segActive]}
-                    onPress={() => setForm(f => ({ ...f, assignType: t }))}
-                  >
-                    <Text style={[s.segText, form.assignType === t && s.segTextActive]}>
-                      {t === 'kid' ? 'Specific kid' : 'Free-for-all'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {form.assignType === 'kid' && state.kids.length > 0 && (
-                <View style={s.kidPicker}>
-                  {state.kids.map(k => (
-                    <TouchableOpacity
-                      key={k.id}
-                      style={[s.kidChip, form.kidId === k.id && { borderColor: k.avatarColor, backgroundColor: k.avatarColor + '22' }]}
-                      onPress={() => setForm(f => ({ ...f, kidId: k.id }))}
-                    >
-                      <Text style={s.kidChipText}>{k.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              {form.assignType === 'kid' && state.kids.length === 0 && (
-                <Text style={s.note}>Add kids first (Kids tab).</Text>
-              )}
-
-              <Text style={s.label}>Repeat</Text>
-              <View style={s.segmented}>
-                {(['once', 'daily', 'weekly'] as const).map(t => (
-                  <TouchableOpacity
-                    key={t}
-                    style={[s.seg, form.repeatType === t && s.segActive]}
-                    onPress={() => setForm(f => ({ ...f, repeatType: t }))}
-                  >
-                    <Text style={[s.segText, form.repeatType === t && s.segTextActive]}>
-                      {t.charAt(0).toUpperCase() + t.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {form.repeatType === 'once' && (
-                <>
-                  <Text style={s.label}>Due date (YYYY-MM-DD)</Text>
-                  <TextInput
-                    style={s.input}
-                    value={form.date}
-                    onChangeText={t => setForm(f => ({ ...f, date: t }))}
-                    placeholder="2026-06-15"
-                    placeholderTextColor={COLORS.textSecondary}
+                    key={c}
+                    style={[s.swatch, { backgroundColor: c }, kidForm.color === c && s.swatchSelected]}
+                    onPress={() => setKidForm(f => ({ ...f, color: c }))}
                   />
-                </>
-              )}
-
-              {form.repeatType !== 'once' && (
-                <>
-                  <Text style={s.label}>Start date (YYYY-MM-DD)</Text>
-                  <TextInput
-                    style={s.input}
-                    value={form.startDate}
-                    onChangeText={t => setForm(f => ({ ...f, startDate: t }))}
-                    placeholder={todayStr()}
-                    placeholderTextColor={COLORS.textSecondary}
-                  />
-                </>
-              )}
-
-              {form.repeatType === 'weekly' && (
-                <>
-                  <Text style={s.label}>Day of week</Text>
-                  <View style={s.weekdays}>
-                    {WEEKDAYS.map((d, i) => (
-                      <TouchableOpacity
-                        key={i}
-                        style={[s.dayBtn, form.weekday === i && s.dayBtnActive]}
-                        onPress={() => setForm(f => ({ ...f, weekday: i }))}
-                      >
-                        <Text style={[s.dayBtnText, form.weekday === i && s.dayBtnTextActive]}>{d}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </>
-              )}
-
-              <Text style={s.label}>Late stars</Text>
-              <View style={s.segmented}>
-                {(['full', 'half', 'none'] as const).map(t => (
-                  <TouchableOpacity
-                    key={t}
-                    style={[s.seg, form.latePolicy === t && s.segActive]}
-                    onPress={() => setForm(f => ({ ...f, latePolicy: t }))}
-                  >
-                    <Text style={[s.segText, form.latePolicy === t && s.segTextActive]}>
-                      {t === 'full' ? 'Full' : t === 'half' ? 'Half' : 'None'}
-                    </Text>
-                  </TouchableOpacity>
                 ))}
               </View>
-
-              <View style={s.toggleRow}>
-                <Text style={s.toggleLabel}>Requires approval</Text>
-                <Switch
-                  value={form.requiresApproval}
-                  onValueChange={v => setForm(f => ({ ...f, requiresApproval: v }))}
-                  trackColor={{ true: COLORS.primary }}
-                />
-              </View>
-
-              <View style={s.toggleRow}>
-                <Text style={s.toggleLabel}>Requires photo</Text>
-                <Switch
-                  value={form.requiresPhoto}
-                  onValueChange={v => setForm(f => ({ ...f, requiresPhoto: v }))}
-                  trackColor={{ true: COLORS.primary }}
-                />
-              </View>
-
-              <TouchableOpacity style={s.saveBtn} onPress={handleSave}>
-                <Text style={s.saveBtnText}>Save</Text>
+              <TouchableOpacity style={s.saveBtn} onPress={handleSaveKid}>
+                <Text style={s.saveBtnText}>Add</Text>
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Bonus modal */}
+      <Modal visible={bonusKid !== null} animationType="slide" presentationStyle="pageSheet" transparent>
+        <View style={s.overlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={s.bonusSheet}>
+              <Text style={s.modalTitle}>Bonus for {bonusKid?.name}</Text>
+              <Text style={s.formLabel}>Stars (negative to deduct)</Text>
+              <TextInput
+                style={s.input}
+                value={bonusVal}
+                onChangeText={setBonusVal}
+                keyboardType="numbers-and-punctuation"
+                placeholder="5"
+                placeholderTextColor={COLORS.textSecondary}
+              />
+              <Text style={s.formLabel}>Note (optional)</Text>
+              <TextInput
+                style={s.input}
+                value={bonusNote}
+                onChangeText={setBonusNote}
+                placeholder="e.g. Helping without being asked"
+                placeholderTextColor={COLORS.textSecondary}
+              />
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                <TouchableOpacity style={[s.saveBtn, { flex: 1, backgroundColor: COLORS.cardElevated }]} onPress={() => setBonusKid(null)}>
+                  <Text style={[s.saveBtnText, { color: COLORS.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.saveBtn, { flex: 1 }]} onPress={handleBonus}>
+                  <Text style={s.saveBtnText}>Apply</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -345,49 +254,46 @@ export default function ParentChoresScreen() {
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
-  screenTitle: { fontSize: 22, fontWeight: '700', color: COLORS.textPrimary },
-  addBtn: { backgroundColor: COLORS.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
-  addBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
-  exitBtn: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
-  exitBtnText: { color: COLORS.textSecondary, fontSize: 14 },
-  list: { paddingHorizontal: 16, paddingBottom: 24, gap: 10 },
-  empty: { textAlign: 'center', color: COLORS.textSecondary, marginTop: 60, fontSize: 15 },
-  choreCard: { flexDirection: 'row', backgroundColor: COLORS.surface, borderRadius: 12, overflow: 'hidden', elevation: 1 },
-  urgencyBar: { width: 5 },
-  choreBody: { flex: 1, padding: 12, gap: 4 },
-  choreRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  choreTitle: { fontSize: 16, fontWeight: '600', color: COLORS.textPrimary, flex: 1 },
-  choreStars: { fontSize: 14, color: COLORS.star, fontWeight: '600' },
-  choreMeta: { fontSize: 12, color: COLORS.textSecondary },
-  choreDue: { fontSize: 12, fontWeight: '600' },
-  badges: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 2 },
-  badge: { backgroundColor: COLORS.bg, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, fontSize: 11, color: COLORS.textSecondary },
-  deleteBtn: { padding: 12, justifyContent: 'center' },
-  deleteBtnText: { color: COLORS.danger, fontSize: 16 },
-  // Form
-  form: { paddingHorizontal: 20, paddingBottom: 40, gap: 4 },
-  formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16 },
-  formTitle: { fontSize: 20, fontWeight: '700', color: COLORS.textPrimary },
-  formClose: { fontSize: 20, color: COLORS.textSecondary, padding: 4 },
-  label: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginTop: 14, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
-  input: { backgroundColor: COLORS.surface, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: COLORS.textPrimary },
-  segmented: { flexDirection: 'row', backgroundColor: COLORS.surface, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' },
-  seg: { flex: 1, paddingVertical: 10, alignItems: 'center' },
-  segActive: { backgroundColor: COLORS.primary },
-  segText: { fontSize: 14, color: COLORS.textSecondary, fontWeight: '500' },
-  segTextActive: { color: '#fff', fontWeight: '700' },
-  kidPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
-  kidChip: { borderRadius: 20, borderWidth: 2, borderColor: COLORS.border, paddingHorizontal: 14, paddingVertical: 8 },
-  kidChipText: { fontSize: 14, color: COLORS.textPrimary, fontWeight: '500' },
-  weekdays: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  dayBtn: { borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: COLORS.surface },
-  dayBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  dayBtnText: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '500' },
-  dayBtnTextActive: { color: '#fff', fontWeight: '700' },
-  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  toggleLabel: { fontSize: 16, color: COLORS.textPrimary },
-  note: { fontSize: 13, color: COLORS.textSecondary, fontStyle: 'italic', marginTop: 4 },
-  saveBtn: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 24 },
-  saveBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14 },
+  title: { fontSize: 28, fontWeight: '700', color: COLORS.textPrimary },
+  addKidBtn: { backgroundColor: COLORS.cardElevated, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
+  addKidText: { color: COLORS.primary, fontWeight: '600', fontSize: 14 },
+  exitBtn: { paddingHorizontal: 8, paddingVertical: 7 },
+  exitText: { color: COLORS.textSecondary, fontSize: 14 },
+  scroll: { paddingHorizontal: 16, paddingBottom: 32 },
+  section: { backgroundColor: COLORS.card, borderRadius: 16, overflow: 'hidden', marginBottom: 14 },
+  kidRow: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  avatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 18, fontWeight: '700', color: '#fff' },
+  kidName: { flex: 1, fontSize: 17, fontWeight: '600', color: COLORS.textPrimary },
+  starCount: { fontSize: 15, color: COLORS.star, fontWeight: '600' },
+  chevron: { fontSize: 20, color: COLORS.textSecondary, marginLeft: 4 },
+  empty: { color: COLORS.textSecondary, padding: 16, textAlign: 'center', fontSize: 14 },
+  pendingBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 16, padding: 14, gap: 12 },
+  pendingIcon: { width: 42, height: 42, borderRadius: 10, backgroundColor: COLORS.cardElevated, alignItems: 'center', justifyContent: 'center' },
+  pendingText: { flex: 1, fontSize: 15, color: COLORS.textPrimary, fontWeight: '500' },
+  // Modals
+  modalHeader: { flexDirection: 'row', alignItems: 'center', padding: 18, gap: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  modalTitle: { flex: 1, fontSize: 19, fontWeight: '700', color: COLORS.textPrimary },
+  modalSub: { fontSize: 13, color: COLORS.star, marginTop: 2 },
+  closeBtn: { fontSize: 16, color: COLORS.primary, fontWeight: '600' },
+  sectionLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
+  choreRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 12, padding: 12, gap: 10 },
+  urgencyDot: { width: 8, height: 8, borderRadius: 4 },
+  choreTitle: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
+  choreMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  choreStars: { fontSize: 13, color: COLORS.star },
+  statusPill: { fontSize: 16, fontWeight: '700' },
+  actionRow: { backgroundColor: COLORS.card, borderRadius: 12, padding: 14, alignItems: 'center' },
+  actionText: { fontSize: 15, color: COLORS.primary, fontWeight: '600' },
+  form: { padding: 20, gap: 6, paddingBottom: 40 },
+  formLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 10 },
+  input: { backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16, color: COLORS.textPrimary },
+  colorRow: { flexDirection: 'row', gap: 12, marginTop: 6 },
+  swatch: { width: 38, height: 38, borderRadius: 19 },
+  swatchSelected: { borderWidth: 3, borderColor: '#fff' },
+  saveBtn: { backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 16 },
+  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  bonusSheet: { backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 6 },
 });

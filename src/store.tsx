@@ -49,21 +49,29 @@ export function getUrgency(occurrenceDate: string, today: string): Urgency {
 }
 
 export const URGENCY_COLORS: Record<Urgency, string> = {
-  overdue: '#EF4444',
-  soon: '#F59E0B',
-  later: '#22C55E',
+  overdue: '#FF453A',
+  soon: '#FF9F0A',
+  later: '#30D158',
 };
 
 export const COLORS = {
-  primary: '#2563EB',
-  bg: '#F1F5F9',
-  surface: '#FFFFFF',
-  textPrimary: '#1E293B',
-  textSecondary: '#64748B',
-  border: '#E2E8F0',
-  star: '#F59E0B',
-  danger: '#EF4444',
-  success: '#22C55E',
+  bg: '#121212',
+  card: '#1E1E1E',
+  cardElevated: '#252525',
+  border: '#2C2C2E',
+  borderLight: '#3A3A3C',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#8E8E93',
+  primary: '#0A84FF',
+  primaryDim: 'rgba(10,132,255,0.18)',
+  star: '#FFD60A',
+  starDim: 'rgba(255,214,10,0.15)',
+  success: '#30D158',
+  successDim: 'rgba(48,209,88,0.18)',
+  danger: '#FF453A',
+  dangerDim: 'rgba(255,69,58,0.18)',
+  // keep alias so existing refs compile
+  surface: '#1E1E1E',
 };
 
 function calculateStars(stars: number, latePolicy: LatePolicy, dueDate: string, submittedAt: string): number {

@@ -102,7 +102,7 @@ export default function KidCompleteScreen() {
           )}
 
           {chore.requiresPhoto && (
-            <View style={[s.infoBox, { backgroundColor: '#EFF6FF' }]}>
+            <View style={[s.infoBox, { backgroundColor: COLORS.primaryDim }]}>
               <Text style={s.infoText}>📷 Camera coming soon — photo step not required yet.</Text>
             </View>
           )}
@@ -132,7 +132,7 @@ const s = StyleSheet.create({
   detailLabel: { fontSize: 15, color: COLORS.textSecondary },
   detailValue: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
   lateNote: { fontWeight: '400', color: COLORS.danger, fontSize: 13 },
-  infoBox: { backgroundColor: '#FEF3C7', borderRadius: 10, padding: 12 },
+  infoBox: { backgroundColor: COLORS.starDim, borderRadius: 10, padding: 12 },
   infoText: { fontSize: 14, color: COLORS.textPrimary },
   doneBtn: { backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 18, alignItems: 'center', marginTop: 24 },
   doneBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
