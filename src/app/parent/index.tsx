@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStore, COLORS, getOccurrenceDate, getUrgency, URGENCY_COLORS, todayStr } from '@/store';
 import type { Kid } from '@/types';
 
@@ -59,7 +60,11 @@ export default function FamilyScreen() {
           <TouchableOpacity onPress={() => setShowAddKid(true)} style={s.addKidBtn}>
             <Text style={s.addKidText}>+ Kid</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => { setRole(null); router.replace('/'); }} style={s.exitBtn}>
+          <TouchableOpacity onPress={async () => {
+            await AsyncStorage.multiRemove(['@choreSync/session', '@choreSync/bioSession']).catch(() => {});
+            setRole(null);
+            router.replace('/');
+          }} style={s.exitBtn}>
             <Text style={s.exitText}>Exit</Text>
           </TouchableOpacity>
         </View>

@@ -30,6 +30,7 @@ export interface Chore {
   id: string;
   familyId: string;
   title: string;
+  icon?: string; // emoji, e.g. '🧹'
   description?: string;
   stars: number;
   repeatRule: RepeatRule;

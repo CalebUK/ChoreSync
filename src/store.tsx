@@ -127,6 +127,7 @@ const initialState: AppState = {
       id: 'chore-dishes',
       familyId: FAMILY_ID,
       title: 'Wash dishes',
+      icon: '🍽️',
       stars: 5,
       repeatRule: { daily: true, startDate: '2026-06-01' },
       latePolicy: 'half',
@@ -138,6 +139,7 @@ const initialState: AppState = {
       id: 'chore-trash',
       familyId: FAMILY_ID,
       title: 'Take out trash',
+      icon: '🗑️',
       stars: 4,
       repeatRule: { weekly: true, startDate: '2026-06-01', weekday: 5 }, // Friday
       latePolicy: 'full',
@@ -149,6 +151,7 @@ const initialState: AppState = {
       id: 'chore-bedroom',
       familyId: FAMILY_ID,
       title: 'Tidy bedroom',
+      icon: '🛏️',
       stars: 3,
       repeatRule: { weekly: true, startDate: '2026-06-01', weekday: 1 }, // Monday
       latePolicy: 'full',
@@ -160,6 +163,7 @@ const initialState: AppState = {
       id: 'chore-bathroom',
       familyId: FAMILY_ID,
       title: 'Clean bathroom',
+      icon: '🛁',
       stars: 6,
       repeatRule: { once: true, date: '2026-06-10' },
       latePolicy: 'half',

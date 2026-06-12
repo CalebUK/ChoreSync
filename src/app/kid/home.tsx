@@ -1,6 +1,7 @@
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   useStore, COLORS, URGENCY_COLORS, todayStr, getOccurrenceDate, getUrgency,
 } from '@/store';
@@ -72,6 +73,7 @@ export default function KidHomeScreen() {
         <View style={[s.urgencyBar, { backgroundColor: isDone ? COLORS.success : URGENCY_COLORS[urgency] }]} />
         <View style={s.choreBody}>
           <View style={s.choreRow}>
+            {item.icon ? <Text style={s.choreIcon}>{item.icon}</Text> : null}
             <Text style={[s.choreTitle, isDone && s.choreTextDone]}>{item.title}</Text>
             <Text style={s.choreStars}>⭐ {item.stars}</Text>
           </View>
@@ -144,7 +146,12 @@ export default function KidHomeScreen() {
 
             <TouchableOpacity
               style={s.switchBtn}
-              onPress={() => { setCurrentKid(null); setRole(null); router.replace('/'); }}
+              onPress={async () => {
+                await AsyncStorage.multiRemove(['@choreSync/session', '@choreSync/bioSession']).catch(() => {});
+                setCurrentKid(null);
+                setRole(null);
+                router.replace('/');
+              }}
             >
               <Text style={s.switchBtnText}>Switch account</Text>
             </TouchableOpacity>
@@ -170,6 +177,7 @@ const s = StyleSheet.create({
   urgencyBar: { width: 5 },
   choreBody: { flex: 1, padding: 12, gap: 4 },
   choreRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  choreIcon: { fontSize: 18 },
   choreTitle: { fontSize: 16, fontWeight: '600', color: COLORS.textPrimary, flex: 1 },
   choreTextDone: { color: COLORS.textSecondary, textDecorationLine: 'line-through' },
   choreStars: { fontSize: 14, color: COLORS.star, fontWeight: '600' },

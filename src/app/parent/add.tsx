@@ -91,7 +91,14 @@ const cal = StyleSheet.create({
 
 // ── Add Chore Screen ──────────────────────────────────────────────────────────
 
+const CHORE_ICONS = [
+  '🧹','🍽️','🗑️','🛁','🛏️','📚','🧺','🌿','🐕','🚿',
+  '🧼','🍳','🚗','🏠','🌱','💪','🎒','🐱','📦','🪥',
+  '✂️','🔧','🪣','🌸','🧽','🐠','🌻','🎨','🧸','⭐',
+];
+
 interface Form {
+  icon: string;
   title: string;
   assignType: 'kid' | 'free' | 'everyone';
   kidId: string;
@@ -107,6 +114,7 @@ interface Form {
 
 function freshForm(firstKidId: string): Form {
   return {
+    icon: '',
     title: '',
     assignType: 'kid',
     kidId: firstKidId,
@@ -152,6 +160,7 @@ export default function AddChoreScreen() {
     if (!form.title.trim()) return Alert.alert('Add a title first');
     if (form.assignType === 'kid' && !form.kidId) return Alert.alert('Pick a kid, or use Free/All');
     addChore({
+      icon: form.icon || undefined,
       title: form.title.trim(),
       stars: form.stars,
       repeatRule: buildRule(),
@@ -173,6 +182,28 @@ export default function AddChoreScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={s.scroll} keyboardDismissMode="on-drag">
           <Text style={s.screenTitle}>New chore</Text>
+
+          {/* Icon picker */}
+          <Text style={s.label}>Icon</Text>
+          <View style={s.iconPreviewRow}>
+            <View style={[s.iconPreview, form.icon && { borderColor: COLORS.primary }]}>
+              <Text style={s.iconPreviewText}>{form.icon || '📋'}</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+              <View style={s.iconGrid}>
+                {CHORE_ICONS.map(emoji => (
+                  <TouchableOpacity
+                    key={emoji}
+                    style={[s.iconCell, form.icon === emoji && s.iconCellActive]}
+                    onPress={() => set('icon', form.icon === emoji ? '' : emoji)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={s.iconCellText}>{emoji}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
 
           {/* Title */}
           <TextInput
@@ -349,6 +380,13 @@ const s = StyleSheet.create({
     borderRadius: 14, padding: 16, marginBottom: 22,
   },
   label: { fontSize: 14, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 10 },
+  iconPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+  iconPreview: { width: 52, height: 52, borderRadius: 14, backgroundColor: COLORS.card, borderWidth: 2, borderColor: COLORS.borderLight, alignItems: 'center', justifyContent: 'center' },
+  iconPreviewText: { fontSize: 26 },
+  iconGrid: { flexDirection: 'row', flexWrap: 'nowrap', gap: 8, paddingVertical: 4 },
+  iconCell: { width: 44, height: 44, borderRadius: 10, backgroundColor: COLORS.card, alignItems: 'center', justifyContent: 'center' },
+  iconCellActive: { backgroundColor: COLORS.primaryDim, borderWidth: 1.5, borderColor: COLORS.primary },
+  iconCellText: { fontSize: 22 },
   pillRow: { flexDirection: 'row', marginBottom: 8 },
   pill: { borderRadius: 10, borderWidth: 1, borderColor: COLORS.borderLight, paddingHorizontal: 18, paddingVertical: 9, marginRight: 8, backgroundColor: COLORS.card },
   pillActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
