@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, Switch, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, Switch, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -153,8 +153,13 @@ export default function HubScreen() {
     <SafeAreaView style={s.safe}>
       <ScrollView contentContainerStyle={s.scroll} bounces={false}>
         <View style={s.header}>
-          <Text style={s.star}>⭐</Text>
-          <Text style={s.appName}>ChoreSync</Text>
+          <View style={s.logoCard}>
+            <Image
+              source={require('../../assets/images/logo.png')}
+              style={s.logoImage}
+              resizeMode="contain"
+            />
+          </View>
           <Text style={s.subtitle}>Who's here?</Text>
         </View>
 
@@ -252,10 +257,20 @@ export default function HubScreen() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
   scroll: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 48 },
-  header: { alignItems: 'center', paddingTop: 48, paddingBottom: 40 },
-  star: { fontSize: 52, marginBottom: 8 },
-  appName: { fontSize: 32, fontWeight: '700', color: COLORS.textPrimary, letterSpacing: -0.5 },
-  subtitle: { fontSize: 17, color: COLORS.textSecondary, marginTop: 6 },
+  header: { alignItems: 'center', paddingTop: 40, paddingBottom: 36 },
+  logoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  logoImage: { width: 180, height: 100 },
+  subtitle: { fontSize: 17, color: COLORS.textSecondary },
   kidList: { gap: 10, marginBottom: 32 },
   kidRow: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card,
